@@ -1,0 +1,125 @@
+In this session we're going to focus
+on Resilient Distributed Datasets or RDDs for short. RDDs are Spark's Distributed Collections
+obstructions and they're really at the core of spark. In this session we're going to
+learn the basics of RDDs and we're going to learn a little bit
+about the APIs that are available and we're going to consider some of
+the basic differences between the RDD, API and APIs that you may be more
+familiar with in Collections. So, off the bat, RDDs seem a lot
+like immutable sequential or parallel collections. So, think about for example a List. List in Scala are immutable
+collections and we often used them with high-order
+functions like map, flatMap, or filter. Just like Lists, RDDs have a similar API, full of lots of high order functions
+like map, flatMap, filter, reduce. This is a simplified
+definition of the RDD class. Of course there are many more methods and
+it's much more complex than this. But this is a simplification of the RDD
+class as defined in the Spark codebase. And as you can see, these signatures
+all look familiar, they look just like the signatures that we've seen on List,
+for things like filter, flatMap and map. And it's a important to note that RDDs really make heavy use
+of higher-order functions. So, just as a reminder, highjer-oerder
+functions are operations map, flatMap, filter, There are methods or functions that take,
+as an argument, another function. So, just to look at some more
+methods on both RDDs and Lists, also other parallel and
+sequential collections. Map, flatMap, filter,
+reduce, fold, aggregate, all of these things exist as well on RDDs. So, we have really some of the core
+APIs still available to us, that we're already used to in
+sequential collections on RDDs. They even have mostly the same signatures,
+macroscopically of course. So in the case of RDD is of course
+the return type is going to be in our RDD rather than a List, if we compare
+the signatures of map, flatMap and filter. Otherwise, everything
+is basically the same. In the case of map, both RDDs an List
+take up a function from A to B and apply this to all the elements
+in the collection. Same is true for faltMap and filter. When we look at these reduction
+operations, same thing. We have effectively the same signatures. The only difference is aggregate. As we can see here, in the case of
+Scala's sequential imperial collection, aggregate has it's zero it's a buy in
+parameter whereas in Spark it's not. Do you have any idea why this might be? I'll give you a hint. But I'd like you think about it on your
+own and perhaps discuss it in the forums. Remember distribution, remember that we're
+going to send things to another computer. So think a little bit about whether or not
+a biname parameter is the best idea versus something that is not biname when it
+comes to having to distribute code. So I hope by just looking at some of these
+basic APIs, you'll agree that using RDDs in Spark it looks a lot like a normal
+Scala sequential or parallel collection. The only difference is that you know that
+your data is distributed amongst several machines. So assuming we don't know
+anything else about RDDs and we only know Scala's collections API,
+let's try to solve a simple problem with Scala's collection's API and
+see if it works for RDD's. So let's assume we have an RDD
+full of encyclopedia articles. Each encyclopedia article, each string
+represents the text of one article, for example, and let's just say, we want to search this RDD full of
+these articles or these article pages. And we'd like to count
+the number of times that EPFL, the university that the Scala
+Programming Language is developed at, let's say we want to count the number
+of times that the pages mention EPFL. What would we do? How would one write this code, knowing that we have something called
+encyclopedia, and we want to search for mentions of EPFL, and
+then sum up the mentions of EPFL? Well it looks very much like
+regular Scala collections. This is all you need to do. So assuming that each page is a string and all I gotta do is do
+page.contains my substring. So in this case, EPFL. All I gotta do is do encyclopedia.filter. I had this very simple predicate, and then I can just count the number of
+pages that I have EPFL in the text. That's it. Works exactly the same as how
+you would do it on a list. Let's look at another example. So word count is the hello world of
+programming with large scale data. How would we do word count in Spark? Hint it looks a lot
+like Scala collections. So let's assume we have an RDD. This is ann example of one
+more you can create an RDD. We will talk more on how
+to create an RDDs later. But let's say,
+I have created an RDD called RDD and now I want to count all
+the words in this RDD. The signatures are written here. This RDD has type, RDD (string) and let's assume that each string represents
+a line of text not text file. So what do we do? If we had a regular Scala list we could
+use flatMap to take each individual line and then split each individual
+line into individual words, now you have a collection
+of different words. Then we flatten that back
+down all to one collection. So the result of this here,
+as again an RDD of string. But this one represents now words. So it represents an RDD
+of all of the words. In this base RDD that contains
+lines of a text file. Next, what we can do is,
+we can map every single word in the RDD to a pair of word and
+the number 1. So we have something that we
+can now sum up and count. So then the next step would
+be to use a reduce operation. So, reduce by key is a little
+bit special for Spark. We'll look a little bit more into depth
+about exactly the differences later. However, what we're doing here now
+is we're just summing up the ones in the pairs, that's it. Now, we have a count of all
+the words in this text file. What's important to notice,
+that we've done this. We've done word count in
+only three lines of code. Another reason why people tend to favor
+Spark over Hadoop is that this program can be done in so few lines of code, so
+clearly, whereas, if one had to write this program in Hadoop it would take many
+more lines of code of lots of look like. So people find Spark so
+much more concise than Hadoop. So last thing we're going to
+discuss in this lecture is there are different ways
+that one can create in RDD. So how might you create an RDD? There are two main ways
+that we can create RDDs. Either by transforming an existing RDD or
+from something called the SparkContext or in later versions of Spark it's
+being renamed to SparkSession. We have this thing called a SparkContext
+or a SparkSession, it's an object. And you can populate
+a brand new RDD with it. Either you populate a brand new
+RDD with this SparkContext or SparkSession, or
+you can get an RDD from an existing RDD. So, in the case of
+transforming an existing RDD, it's just like when you pull a high
+order function like map on a List. You get a new List back. In the same exact way, when you
+call a map, for example, on an RDD, you get back a new RDD. So, you can get an RDD as a result of
+doing a transformation on another RDD. Just like you can with Lists. Now the other way is to
+use this SparkContext or SparkSession object,
+as I mentioned earlier. This is important to remember
+because you're going to see this in your assignments later. Remember what this SparkContext or this
+SparkSession object is because this thing, it might have a weird name, but
+this is the handle to this Spark cluster. This is how you talk to Spark. You talk to Spark always through
+this thing called the SparkContext. So whenever you start a new Spark job,
+you gotta create a SparkContext first. You gotta pass some parameters to
+it to configure your Spark job and then you've gotta start creating
+RDDs using this SparkContext. Now this SparkContext, a lot of
+the smart work surrounding distribution, figures out lots of things that you
+don't want to ever have to worry about. Most important to remember that this
+is your handle to your Spark cluster. And the two methods that
+are the most important to remember, that we're going to in all of
+the subsequent slides, and and in the assignments,
+are parallelize and textFile. Parallelize creates an RDD out
+of a regular Scala collection. You're not really going to come across
+this in real code bases where you're doing really big jobs because the assumption is
+that you already got the collection in memory, in a Scala collection like
+in a List or something else and now you just want to create an RDD. Most of the time,
+when you're using large data sets, you're going to be using this text file,
+a method, which basically can read a text file
+usually from HDFS, Hadoop's File System, or a local system like a regular text
+file and then return an RDD of Strings. So after you get this RDD of Strings back, then you need to figure out how
+to transform into something else. If you don't want it to be Strings,
+maybe you want it to be integers, or something like this. But the text file will
+return an RDD that you can then do all kinds of subsequent
+transformation and analyses with. In the next session we're going to delve
+a little deeper into RDD's and some of the most important operations that exist
+on RDD's, transformations and actions.

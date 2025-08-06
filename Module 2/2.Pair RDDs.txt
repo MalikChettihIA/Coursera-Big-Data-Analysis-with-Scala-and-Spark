@@ -1,0 +1,90 @@
+In this session, we're going to focus on
+distributed key values which are a popular way of representing and organizing
+large quantities of data in practice. And in Spark, we called these
+distributed key-value pairs Pair RDDs. If we think back to the functional
+programming in Scala courses, when we were focusing only on sequential Scala
+in the basics of functional programming, we didn't work with any data types
+called key value pairs though, we did work with a collection
+type called a map. And if you recall, maps are essentially
+collections of keys and values. So while we didn't call them map
+key-value pair, conceptually, it's the same thing and this concept
+goes by other names in other languages, such as associative arrays or dictionaries
+in languages like JavaScript or Python. Though if you think back to the single
+machine scenario even though most languages have something like a map or a
+dictionary as a core data structure, maps, dictionaries, et cetera maybe weren't the
+most often reached for data structure on the shelf of data structures that you had
+to choose from when you were doing these programming exercises in the earlier
+functional programming courses. You might have used other
+data structures like lists or even arrays more often than you might
+have reached for something like a map. However, in the world of large scale data
+processing and distributed computing, the opposite is actually true. It's actually more common to operate on
+data in the form of key-value pairs than anything else. In fact, when google designed MapReduce, focusing on all data as key-value pairs
+was a key design decision based on real use cases involving large
+amounts of data at Google. In fact, the original designers of
+MapReduce even explained the rationale surrounding their focus on key-value pairs
+very clearly in their original research paper, which present MapReduce
+to the world back in 2004. They said here, we realized that most of
+our computations involved applying a map operation to each logical record in
+our input in order to compute a set of intermediate key value pairs and then applying a reduce operation to all
+of the values that shared the same key in order to combine
+the derived data appropriately. Or said another way, computations that
+they were already doing at Google always ended up producing key-value pairs. So, they focused the design of MapReduce
+around this common pattern for manipulating large amounts of data. This is due in large part to the fact
+that large datasets are often made up of unfathomably large numbers of
+complex nested data records. So, complex elements of a large dataset
+like the Wikipedia case class we saw in the previous session. And of course, the case class that I
+showed you was just an example and a simplification of such a record. Given such complex records and the need to do computations on them,
+often data analysts need to project down these complex data types into key-value
+pairs in order to operate on them. Here's another example of a record. A single element in this case and
+it's in JSON, but this is the shape of perhaps a single
+element that you might find in an RDD. The intuition I want you to get here is
+that often, there are many fields and there are lots of rich nested
+structure to these records. There can be objects nested in
+objects nested in objects, and it can go quite deep. So let's say, we have something like this
+JSON record on the left as our input data and the analysis that I want to do may
+focus only on the cities that certain properties are in. So here, we have some properties and
+I care about the cities and perhaps the street addresses, but
+maybe I want to do some analysis and I don't care about the rest of this data. I only care about this
+part of the dataset here. So in this case, it may be desirable to
+create an RDD of properties of type pair, string, property where the key of
+type string represents the city that a property is in and the property type
+here represents the corresponding value like we see in the record to the left. We have the case class four here where the
+property contains a street of type string, a city of type string and
+a state of type string. So you can imagine that given
+bunch of this properties, it could be desirable to group them by
+their cities as the key to do computations then on this groupings
+of properties by city. This is one scenario where on a large
+dataset manipulating your data into a key-value pair might be desirable. As alluded to earlier in the session in
+Spark, we call these distributed key-value pairs Pair RDDs and
+they are particularly useful, because they allow you to do special
+operations per key in parallel and they allow you to group data
+by keys across the network. Very importantly,
+Pair RDDs come with special methods for working with data that's associated
+with a corresponding key. That is Pair RDDs have extra methods
+related to keys that regular RDDs don't have. So if you try to call some of these
+methods on an RDD which is parameterized by type integers, so an RDD full of
+integers, the compiler would say, nope, I can't do it and will give your
+error saying, the method cannot be found. So remember, if you have an RDD with
+a type parameter that is a tuple or pair, it is treated specially by Spark. It has special extra methods and just to give a sense of a handful of these
+special methods that we have on Pair RDDs, some of the more commonly used ones
+are groupByKey(), reducedByKey and join. We'll cover these methods in
+a lot more detail very shortly. But first, you might ask, well, great,
+how do I actually created a Pair RDD? It's actually quite simple. Pair RDDs are most often
+created from already-existing RDDs using operations such as
+the map operation on RDDs. So that said, let's do a quick quiz. Let's say, I wanted to create
+a Pair RDD from an RDD full of these Wikipedia pages that we saw in a previous
+slide such that the key of the Pair RDD represents the title of
+the Wikipedia article and the value of the Pair RDD represents
+the text of the Wikipedia article. What method would I have to call with
+which arguments to create this Pair RDD from this val RDD above? So again, as a hint, you can use some kind of transformation
+operation to then create a Pair RDD. What would you use? It's simple. In this case, I can just call
+map on the original RDD here and I pass a function here
+which selects the title and the text from the Wikipedia article and
+then makes them into an element of a pair. So, this is now a Pair RDD and
+it has all of these special key-value pair transformation methods
+available to you to be used now. So now, the type is what we
+saw in the previous slide. The type looks something like this now,
+so it gets all the special methods. So now,
+you can do things like reduceByKey or join on this new pairRdd that you
+couldn't do before on this Wikipedia rdd. In the next session, we're going to dive into a lot more detail
+about these operations on Pair RDDs. So, these and more.

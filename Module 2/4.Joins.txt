@@ -1,0 +1,234 @@
+In this session,
+we're going to be focusing on joins. Just like in the previous session, the join operations that we'll be
+focusing on are unique to Pair RDDs. So that means you can't call the join
+methods that we show you on regular RDDs. It just won't work. You may already be familiar with
+the concept of joins from databases. And indeed, the joins found on Pair RDDs are conceptually similar to those that
+you might have come across in databases. We're going to focus on joins
+in Spark in this session, which are amongst the most commonly
+used operations on Pair RDDS. So that said, what's a join? It's pretty simple. It's just an operation that will combine
+two different Pair RDDs into one Pair RDD. So visually it's something like this. You have two RDDs,
+That's one, and that's two. And you want to combine them together
+somehow into a resulting RDD. And the way that you do that
+is using the join operation. There are two main kinds of joins. So on one hand we have inner joins, which
+is called just regular join in Spark. So the method just called
+join refers to an inner join. And the other kind is outer joins,
+which have two variants. So the method names in
+Spark LeftOuterJoin and rightOuterJoin. The difference between two variants,
+inner joins and outer joins, only has to do is what happens to
+certain elements based on their keys. Depending on whether both RDDs in
+the join contain a certain key or not. Said another way, when we try to join
+together the two Pair RDDs containing different customer IDs as the key for example, the difference between the inner
+and the outer join is what happens to the customers whose IDs
+don't exist in both RDDs. Of course, it's easier to look at
+an example to better understand this difference. In this session, all of our examples are
+going to focus on the Swiss Rail company. So Switzerland has a very famous train
+system, and the company behind it is referred to as the CFF in
+the French-speaking part of Switzerland. So we're going to focus on
+examples as if we are the CFF. And we're trying to make decisions
+about our train service based on the travel habits of
+our regular customers. Rail customers in Switzerland and in other
+European countries almost always have some kind of discount card for
+traveling on a train. So in Switzerland, most of the country
+has some kind of discount card. They pay yearly for it. For example,
+the card called here, DemiTarif, gives a 50% discount on train fares. And there's also another one
+called abonnement general. In this case, AG we call it,
+you pay for it, and you get a free pass to
+take any public transit. So in this example, let's say we have
+two datasets collected by the CFF. This dataset is called abos,
+which stands for abonnement. It just means subscriptions. So one dataset represents customers and
+their subscriptions. So this should be the customers and
+their subscriptions here, called abos. And the other one represents
+the customers and the cities that they most
+frequently travel to. So this one called locations here. And in this one, you could imagine that
+it's perhaps collected from the smartphone app that people use to buy
+their train tickets on the go. So this is locations. It's a dataset of customers and
+their most frequently traveled city. And this one is abos, and it's information
+about the customers' subscriptions. So in this case,
+this customer's last name is Gress. And he or she has a DemiTarif,
+so a half-fare card credit card. Note that both of these
+datasets are Pair RDDs. So I've taken a list of pairs, and
+I've created an RDD out of it. This produces a Pair RDD in both cases. So these are both Pair RDDs,
+abos and locations. And an important thing to note
+is that it's possible for a customer to be in both datasets. So we can see here that this
+customer ID 101 is in both datasets. So this customer who has this AG card
+frequently travels to, for example, Bern. Here's a little visualization
+of the same dataset. So in the abos dataset, we have key value pairs where
+the values are pairs themselves. So these are the values here, and they represent the customer's
+last name, this here. And the customer's yearly
+subscription to the train service. For now, these subscriptions,
+we'll just assume that they are an instance of
+a case class that has no field. So don't worry about exactly
+how they're implemented. While on the other hand,
+the locations dataset is a little simpler. It's just one Pair RDD
+with a string as a value. In this case,
+the key is the customer number. And the value is the name of the city that
+the customer most frequently travels to. So in both Pair RDDs,
+the keys are the customer numbers. Also note that locations
+is bigger than abos. There are more elements in locations. So both of these datasets
+have different sizes. And again, you can imagine that the abos
+dataset here comes from the CFF's customer database of subscriptions. And the location dataset you could imagine
+could come from months of collecting data about how registered users are using the
+train service from the mobile application. So on the smart phone app for
+buying train tickets. Importantly, this means that it's
+possible to be a registered user of the smartphone app. So you can be in this data set here. But you don't necessarily have to have a yearly subscription like the 50%
+discount card called the DemiTarif. So it means it's possible to have people
+in this dataset that don't yet exist or don't exist at all in this dataset because
+they don't have any kind of yearly subscription. And vice versa, it's possible for
+people in the abos dataset here to not be in the locations dataset because
+they don't have or use a smartphone, for example, to buy their train tickets. Maybe they just buy their train tickets
+using a regular paper ticket machine. So that's also possible. So this is something like a real dataset
+because there are little imperfections between the two datasets that we have to
+somehow take care of if we'd like to merge them together somehow. We'll be able to handle these cases
+using one of a few different choices of join operations in Spark. The first one we'll look
+at is called inner join. We'll be able to handle these cases using
+one of a few different choices of join operations in Spark. The first one we'll look
+at is called inner join. The simplest explanation of what
+this operation does is as follows. Inner join returns a new RDD
+containing combined pairs whose keys are present in both input RDDs. What does this mean? The signature here can
+helps out a little bit. So this method join here
+can be called on a Pair RDD passing another Pair RDD as a parameter. It assumes that both RDDs have keys
+of the same type, as we can see here. And that they can have
+values of different types. In this case, values of type V and W. But what this operation does is
+it returns a new Pair RDD where the value of the resulting
+Pair RDDs is itself another pair containing both
+values of the two input Pair RDDs. What's most important to
+remember is that the inner joins are special because the resulting pair RDD will only contain key value pairs
+per keys are present in both RDDs. That means if this join is kind of lossy, if there's a key in one RDD that's
+not in the other, it gets dropped. Of course, these things are always
+much clearer with an example. So let's use the dataset
+that we just looked at. How do we create new RDD which
+can tell us which customers one, have both a subscription? And two,
+will also use the CFF smartphone app so we can keep track of which
+cities they regularly travel to? So how would you implement this
+value called trackedCustomers here? What would you do to do this? I'll give you a second to think about it. So you can probably guess that we're
+going to use the join method that we just introduced, right? This one called join. But first question is which pair
+RDD should we call this join on? Do we call it on locations, and
+then do we pass abos as an argument? Or do we call it on abos and
+pass locations as an argument? Does it matter? The answer is that no, it doesn't matter,
+we can just do abos.join(locations). And we can look at this
+little visualization here to get an idea of what's happening to
+the actual data when we do this join. So remember, the goal is to combine
+both Pair RDDs into one Pair RDD. And in particular, what we want to do
+is we want to put customers who have both subscription info and
+location info into the resulting Pair RDD. Visually, that means that we want to
+make an RDD with only these highlighted elements inside of it because
+they exist in both RDDs. So 101, 102, 103, these customers, we've got them also in
+the locations RDD here. So customer 101, customer 102,
+customer 103 are here. So we want to make a new RDD
+with only these elements in it. And this is what our
+resulting Pair RDD looks like after calling abos.join(locations). Remember that the value
+of the new key value pair is another pair representing
+both input values. So in this case, the first element of
+the value pair, so here is the values. The first element is another pair
+representing the last name of the customer and their type of subscription. And the second element of
+the value pair is the city that they frequently travel to. Do you notice anything else
+weird about these results? They're a kind of sort of duplicates,
+right? Before we only had one element for
+this customer. But now we have one for each element
+that was in the locations RDD. This is because, if we go back and look at
+the original two datasets, some customers like 102 and 103, they have a handful of
+cities that they like to frequently visit. But in the abos dataset, we have
+just one entry per customer number. So the resulting Pair RDD,
+that customer info is duplicated for each different frequently-visited
+city by that customer. So this is how the data
+is merged together. And remember joins are transformations. Just like in all of the other sessions so
+far, if we actually want to see the resulting
+dataset like we saw in the previous slide, we actually have to invoke some kind
+of action to kick off the computation. And again,
+like we've done in previous sessions, we're just going to call collect on the
+RDDs here, on this trackedCustomers RDD. It's a pair RDD, and then once we get back
+this collection, in this case an array, we'll do foreach on it. And println to just see
+what the results look like. But wait a minute,
+what happened to customer 104? Look back at this abos dataset
+on one of the previous slides. Notice that this person is gone. Remember, there was this customer here. Customer 104 doesn't exist in the output. See, this person is missing. Customer 104 does not occur in the result
+because there's no location data for this person in the location dataset. Remember that inner joins require
+keys that occur in both source RDDs. Else they're dropped from the result. Let's now shift gears a little bit and
+visit the other kind of join, outer joins. Said most simply, outer joins return
+a new Pair RDD containing combined pairs whose keys don't have to be
+present in both input Pair RDDs. So that means this kind of join
+is particularly useful for figuring out how to deal with
+missing keys between Pair RDDs. This is why there are two kinds of
+outer joins, left outer joins and right outer joins. Because it lets you decide which RDDs
+keys are the more important to keep, the ones on the left or the ones on
+the right of the joint expression. To better understand, let's have
+a look at the type signatures here. They look a lot like the type signature
+of the inner join with the exception of the Option type here
+on the return type. This means that if a key isn't
+present in both input RDDs, the optional value could simply be none. So you have an entry still, but instead of being sum and
+then the value, you have then just none. And notice for the leftOuterJoin here,
+so on this one, the option is on the second element
+of the value pair in the result. And on the rightOuterJoin, the option is on the first element
+of the value pair in the result. This is how we decide which input
+RDD we prioritize for the keys. As usual, it's always nice to try to
+better understand these operations with a concrete example. So let's go back to our CFF dataset. And let's try to solve
+a slightly different problem. So let's say the CFF wants to know for which subscribers it has
+collected location information. For example, we know it's possible that somebody
+has a subscription like a DemiTarif. But doesn't use the mobile app and
+will always pay for tickets with cash at a machine. Which of these two outer joins do we use? Again, let's return to our
+visual depiction of the data. So we want to combine both these
+Pair RDDs into one Pair RDD. And we want to know for which subscriber,
+that means for which people in this abos dataset, that we've also
+collected information for about location. So which kind of outer join
+do we choose to compute this abos with optional locations value? We can also highlight the elements that
+we want to keep when doing this join. So we can highlight the elements that
+we want to keep when doing this join. We want to make a new RDD with
+these elements that are in yellow. So which join do I choose? And on which Pair RDD do I
+poll that join operation? Does it matter? Think about it and give it a try yourself. Go back and look at the signatures
+of the outer joins if you need to. And when you look at those signatures,
+ask yourself, which part of the resulting value
+pair should be the optional part? Well, the answer is that the elements
+from the location dataset should be the optional part of
+the resulting value pair. Because, remember,
+we care about subscribers, so we prioritize the subscriptions
+RDD called abos. So with this information, we can now
+choose which join you want to use and on which RDD we want to call that join on. So since the important RDD is
+the subscriptions RDD called abos, that means we call join on abos. Now we just have to figure out
+which outer join method to use. So let's look at the type signatures. The leftOuterJoin method
+makes it possible for the second element of
+the resulting pair to be optional. So the answer is that we call
+leftOuterJoin on abos and we pass locations in as an argument. Here are the results visualized. Like last time, the key is the customer
+number and the value is a pair. Where the first element is
+the subscription data here, last name and subscription type. And the second element is
+the optional value for the customer's frequently-visited cities,
+so here. And of course, this is what it
+looks like when we use collect and foreach to actually kick
+off that computation. Because we can't forget that
+the leftOuterJoin method, like all the other join transformations,
+they're transformations. So we have to do something like collect, some kind of action to
+start the computation. So said another way,
+since we used a leftOuterJoin, keys are guaranteed to be kept
+in the left input Pair RDD. This is why we can see customer 104 here. That's because this customer
+has a subscription. He or she has a DemiTarif here which
+is on the left side of the join. So the element must be kept even though
+there is no location data for this key for this customer in the location dataset. Hence, why we see the value None here for
+the most frequently-visited cities. Let's flip this problem
+the other way around. Let's imagine instead that
+the CFF wants to know for which of its smartphone app
+users it has subscriptions for. You can imagine that perhaps the CFF
+would like to offer a discount maybe on a subscription to one of these users. So maybe the CFF would like to identify
+the people who use the mobile app, but don't yet
+have a DemiTarif subscription. And they maybe want one. So which OuterJoin should be used and
+which RDD should we have on the left and on the right side of the join
+operation to find these users? Visually, that means we want
+this part of the dataset. That is, we don't care about
+customer number 104 because that customer doesn't use the smartphone app. Therefore, we want to make a new
+RDD with only these elements. Which join should we use, and on which
+pair RDD should we call the join on? Of course,
+the slide gives the suggestion away. Let's just try to use the rightOuterJoin. Why? Remember, the signature
+of the two outer joins. For the rightOuterJoin, the optional element is the first
+element of the resulting pair. In our case, that would be
+the value from the abos dataset, which is the less-important
+dataset in the join. Since we're focusing on smartphone users, we want to make sure that we keep every
+key/element of the locations datasets. Therefore, we should do
+abos.rightOuterJoin(locations). This is what the resulting combined
+dataset looks like after calling abos.rightOuterJoin(locations). This result isn't the most interesting
+result because there is no customer which uses the mobile app, but
+which doesn't have a subscription already. If there was,
+we would see at least one element, or rather than this optional Some here, Some, last name, subscription,
+we would just see type None. And then the cities that that
+customer frequently travels to. Here it's what it looks like printed out
+after calling collect for each print line. What's important to note is that we lose
+customer number one 104 again, you see? Because that customer number is not
+in the right side of the join, so it gets dropped. We don't need it, so it doesn't end
+up in the resulting join dataset. Phew, so those were the different
+kinds of joins in Spark.

@@ -1,0 +1,195 @@
+In this session, we're going to focus
+on transformations and actions. Transformations and actions are the
+different kinds of operations on RDDs. To understand transformations and actions
+and its work, first recall transformers and accessors from Scala's sequential and
+parallel collections. If you don't remember what these terms
+mean, I will briefly remind you. Transformers are operations that
+return new collections as a result. So, not a single value. If you, for example,
+call a method on a list and you get back another list,
+typically this is a transformer. So in this case, if we call a map on list,
+we get back another list. An accessor is a method that returns
+a single value as a result and not a collection. So examples of accessors are things
+like reduce, fold, or aggregate. So just to remind you what reduce does,
+it goes through and according to some kind of function you would give it, it
+combines all of the elements together and it will give you the single
+combined result back. This is an accessor. Now, where we had transformers,
+transformers and accessors in regular Scala collections,
+we have in Spark transformations instead of transformers
+and actions instead of accessors. So the definition of a transformation,
+very similar to a transformer, is an operation that returns not
+a collection but an RDD as a result. And likewise, an action is something that
+computes a the result based on an RDD and it returns or saves that result to
+an external storage system, but it doesn't return an RDD. It returns something like a value,
+or something that's not like an RDD. But this is the most important thing, if
+you remember anything from this lecture, you need to remember that transformations
+are lazy and actions are eager. This is extremely important to remember. This is an enormous difference
+from Scala collections. So while you might have a method with
+a very similar signature like map, similar to the signature
+of map on Scala's lists, the fact that it's lazy and
+not eager is an enormous semantic difference that you need keep in
+mind when you are writing Spark programs. And the reason why this is so important is because this is the way
+that Spark deals with the network. The fact that transformation
+operations are lazy and actions are eager lets us
+aggressively reduce the amount of network communication that's
+required to undertake Spark jobs. So if you recall, in an earlier session, we were talking about how
+important latency was, and I mentioned at some point that this is going
+to sneak out into the programming model. This is how it gets into
+the programming model. Okay, so let's make that more
+concrete by looking at an example. So let's assume that we have a large list. And you remember, we're going
+to use this parallelize method. So I didn't define it here,
+but sc is a Spark context. We'll see later more concretely how
+to create an instance of these. But typically you always create a Spark
+context once in your program and then you keep reusing it,
+you create RDDs from it. And in this case, we can use that
+parallelize method we learned in the last session to transform this large list
+of strings into an RDD now of strings. Now this has type RDD of string. And so now that we have an RDD of String,
+we can do a map on it. We can go to each element and
+call length on each individual element, then we'll get back an RDD now of lengths. So now the type of lengthsRdd
+will be an RDD of integers. Okay, cool. So what's happening on
+the cluster now at this point? Well, the answer is nothing. Because remember,
+a map is a transformation method, it's deferred, nothing happens. All we get back is a reference to
+an RDD that doesn't yet exist. So how de we ensure that this
+computation is done on the cluster? What do we do? Well, to kick off the computation and
+to wait for its result to be completed and returned, we can add an action. So in this case, we get the total number of characters
+in the entire RDD of strings. And we can do that using
+this reduce operation, which we saw on a earlier
+slide is an action. Reduce returns not another RDD, but a
+single value like an integer, for example. In this case,
+we're going to get back an integer. So this is important to remember. This is probably one of
+the most common problems that people have when they're
+just learning Spark. They erroneously assume that after a map
+or a filter operation has been done, that their computation has started or
+been completed. When in reality,
+nothing happens on the cluster. Nothing happens till invoking some
+type of action to return a result. So this is going to be very important for you remember in your first
+programming assignment. So just to give you a flavor
+of some of the more commonly used transformations that
+you'll see in Spark programs. So there are the usual suspects here, map, which, again, note that it's a
+transformation because of its return type. In of all these cases,
+an RDD is being returned. So these are transformations
+because the return type isn't RDD. Which means these things are lazy, right? I'm just going to remind you again,
+lazy operations. So map we already know pretty well, apply
+a function to each element in the RDD and then return another RDD of the result of
+all of these applications per element. flatMap, same idea, but
+flatten the result. So return an RDD of the contents
+of the iterators returned. In the case of filter,
+we use this predicate function. And we return an RDD of elements
+that have passed this predicate condition in this case. It's a function from
+some type to a Boolean. And finally, distinct. This is also another
+rather common operation. And basically, this is kind of
+like distinct on a set operation. So it will remove duplicated elements and
+return a new RDD without duplicates. Now that we've seen a few common
+transformations that you're going stumble across in your assignments and in the wild, let's look at common
+actions that you might find in the wild. And again, I'm going to remind you
+with big letters that these are eager. These are how you kick off
+staged up computations. So some of the most commonly
+used operations are collect. So collect is very popular,
+because it's a way, after you've reduced your data structure
+down, let's say you did a bunch of filter operations and you've gone
+from some RDD that was 50 gigabytes, and now perhaps you've only got
+a handful of elements in it. This is how you get the result back. After you've reduced the size of
+your dataset, you can use collect to get back the subset or the smaller
+data set that you filtered down. So you get all elements out of the RDD. But typically you use collect after
+you've done a few transformations. You know your data set's
+going to be smaller, then you do collect to get all of those
+results collected on one machine. The next operator which we've used so
+far actually is count. So the idea behind count
+is very similar to the idea behind counts in collections API. Just return the number
+of elements in the RDD. Take is another very important action,
+okay? It's an action because we
+go from an RDD to an array. So you maybe have a very large RDD
+of 50 gigabytes worth of elements. And you say okay, take 100. And you get back then an array
+of those 100 elements of type T. So you basically are converting
+what was once an RDD into an Array. That's the same with collect, I didn't
+mention that, the return type of collect is an Array of T, because you're taking
+things out of an RDD and you're putting it into an Array on one machine instead
+of spread out on many machines in an RDD. Finally, we have reduce and foreach. Reduce I think we know pretty well,
+combine all of the elements in RDD together using this operation
+function and then return the result. So the return type of this is A instead of
+an RDD, that's how we know it's an action. And finally, foreach,
+because foreach returns type unit. So this applies this function
+to each element in the RDD. But since it's not returning an RDD,
+it's an action. So, again, how do you determine
+whether something is an action or a transformation? You look at the return type. If it's not an RDD, it's an action,
+which means it's eager. Never forget this. Let's look at another example. So let's assume we have
+an RDD of type String. So it doesn't matter where it came from. We have this RDD of type String now,
+which contains gigabytes and gigabytes of collected logs
+over the previous year. And each element of this RDD
+represents one line of logging. Okay, so this is a very realistic scenario
+which you might want to use Spark for. Perhaps you have many devices or machines
+constantly logging to some persistent storage somewhere like S3, okay. And now you want to analyze maybe how
+many errors you have in the last month. So assuming that we have
+these dates in a typical year-month-day-hour-minute-second format,
+and errors, when there is an error, the errors are logged with a prefix
+that includes the word error in it. How would we determine the number of
+errors that were logged in the month of December, 2016? Easy, we can start by calling filter. And on each line in the log,
+we can check to see if the string 2016-12 exists. And if so, only pass this predicate
+if also this is satisfie. So if error exists also
+in that line of text. So if you have both 2016-12 and
+error in that line of text, then filter it down into a new
+RDD with just these elements. So of course,
+nothing happens at that point. This is just a staged-up computation. And again, by staged, I mean it's
+a computation that we know we're going to eventually do, but
+we haven't started it yet. You could imagine that we could stage
+up many more computations as well. We could do another filter on this. We could do a map on it. We could convert everything
+in the logs to uppercase. We can do many more transformations
+that don't actually get executed yet. We can just stage them up,
+we can queue them up, okay. And finally, in this case,
+we'll call count. That actually gives the order to Spark
+to send this function over the network to all of the little individual
+machines to do their computations, and then to add them up and
+send back the results, the count call. And to aggregate it, combine it all up,
+so that you have one integer or one long with the number
+of errors in the logs. I bring up this example because it
+illustrates why laziness is useful. So even though this is very simple,
+it stills illustrates something that is really useful about doing this in a way
+where transformations are lazy and actions are eager. By staging up computations in this way,
+we can optimize them. So Spark can be very smart and decide
+when it can stop doing work to save time. So in a very similar example, it's basically the same example, where we
+have an RDD of strings, we do a filter, it contains an error, and then we
+do an action, in this case take 10. You could imagine that it's
+exactly the same code as here. What's really happening is that
+the execution of filter is being deferred until this
+take function is applied. And this means, Spark can be very smart. Spark can stop filtering elements
+once we've gotten ten of these. So Spark does not have to
+first go through everything, make a new RDD all over the place,
+all over the whole network with all of the instances of error,
+it can just stop when we've gotten to 10. So this is beneficial because
+it saves time and work, and it can do smart things like not
+computing intermediate RDDs. This is why it's advantageous
+that transformations are lazy, because then we can do all
+kinds of optimizations on them. Finally, I just want to run through a few
+other kinds of transformations that you might encounter in this course. There are a special group of
+transformations that combine two RDDs. These are typically set-like
+operations like union or intersection. So if I have an rdd1 and an rdd2, I can create the union of those two RDDs by saying val rdd3 = rdd1.union(rdd2). In this case,
+rdd3 will be a new RDD containing the elements from both rdd1 and rdd2. So these are regular set-like operations. And the same goes for intersection. So you can do the same thing
+with two different RDDs, or you can return a new RDD containing
+the elements only found in both RDDs. Subtract is also quite useful,
+it's the same idea. But you can subtract
+the elements out of another RDD. This is kind of like when you're
+using a vector editing program and you can also subtract shapes
+from one another, right. And then finally, there's
+the Cartesian product with other RDDs. And again, you know that these things are
+transformations because the return type is always an RDD. So it's lazy. Finally, there are a handful of actions
+that you're going to come across. These are actions that don't exist in
+Scala collections, surely there are some things that are different between
+Scala collections and Spark. These are operations which are useful
+when dealing with distributed data or very large data sets. So just to repeat, we know that these
+are actions because the return type is not an RDD, which means that they're eager. Okay, so operations like takeSample. If you want to sample down or decrease
+the size of your data set, takeSample will give you a random sample of a certain
+number of elements that you want, but it returns an array to you. So you take a very large data set,
+you sample different pieces of it, and then collect the subsample data set to
+one array on one machine rather than have it be distributed in RDDs. Likewise, there's another
+operation called takeOrdered. So you can, in this case, you can do
+a take, but have them be ordered. So you can return the first n elements of
+an RDD using either their natural order or a custom comparator. So that's this implicit
+ordering parameter here. And finally, there are two different
+kinds of save as functions. So this is of course very important
+when you're doing distributed jobs. So these are side effecting operations. You can call saveAsTextFile on an RDD. It's an action. You had queued up many transformations,
+and then now you say, okay, save as a text file. It causes all these of
+transformations to be computed, and then this thing can be
+written to file at this path. This lets your write to a file either
+in the local filesystem or in HDFS. And saveAsSequenceFile is very similar. So you can save the elements of your
+dataset as a Hadoop SequenceFile in the local filesystem or HDFS. So again, these are actions. And these are things that
+are very practically useful and that you might come across in this
+course or in Spark codebases elsewhere.

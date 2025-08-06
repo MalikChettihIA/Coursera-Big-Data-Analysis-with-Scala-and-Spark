@@ -1,0 +1,117 @@
+In this session we're going to talk
+about the anatomy of a Spark job. We're going to look at how clusters are
+typically organized that Spark runs on. And this is actually important. It's going to come back to
+the programming model once again. You can't just pretend like you have
+sequential collections that are on one machine. You actually have to think about how
+your program might be spread out along the cluster. So, let's start with a simple
+example to try and motivate this. Let's say we have a case class person. It's got a name, which is a type of
+string and an age which is typed Int. And let's say we have RDD
+full of these person objects. So, we have an RDD called people. Now if we say people.foreach and we println, so just want to print
+out all of the people in our RDD. What happens? I'm going to give you
+a minute to think about it or maybe even to look back
+at your previous notes. Actually before answering that question
+let's look at a second example. Assuming again we have an RDD
+full of these person objects, and I say people.take(10) what happens? Where will the array of person objects
+that is returned by take(10) end up? I'll let you think about this too. Before I give you the answer for both examples let's first look
+at how Spark jobs are executed. Spark is organized in
+a master worker topology. Remember you are writing a program which
+is then getting distributed to a bunch of workers where your data is. And typically roughly the same operation
+is being done across all of the workers. So usually there's one master and
+many workers. In the context of a Spark program, we refer to the node that acts as
+the master as the driver program. And we refer to the workers
+as the worker nodes. Now the driver program is
+where the spark context is. So this is the thing that we are using to
+create new RDDs, to populate new RDDs, and when we do Spark context or
+SC.paralyze or SC.textfile, we're actually using this
+thing here in the driver program. When you write a Spark program, you write a Spark program from
+the perspective of this node here. You think as if you were
+the driver node and you're giving commands to worker nodes. This is a node that you're interacting
+with when you're writing Spark programs, and these are the nodes that
+are actually doing the jobs. So the executors are actually
+doing all the work, and this is coordinating the work. You can think of it that way. But of course, how do they communicate? They communicate via something in
+the middle called the cluster manager, and a cluster manager is what actually does
+the work of doing all of the scheduling, and managing resources across the cluster. It keeps track of everything. It does a lot of bookkeeping. Popular cluster managers are YARN or
+Mesos. So often when you're running on a real big
+cluster that you're maintaining yourself, you typically choose one of these
+cluster managers to run on top of. Okay, so this is more or
+less the anatomy of a Spark job. So you have this driver program, you have your Spark context in it all of
+it is kind of passing through this cluster manager thing that takes care of stuff
+like memory and worker node and all of the work is being done in these things
+called executors on the worker nodes. So when you take a step back, it's best to
+think of a Spark application as a set of processes that are running on
+a cluster where the Driver Program, the driver node here, the master node,
+is coordinating all of these processes. And it's important to
+remember that the driver is where the main method
+of your program runs. And the process running the code
+that creates the Spark context creates RDD's and it stages up and
+it sends off transformations and actions. That all lives here on this driver node,
+so the driver node or the driver program is really
+the brains of your Spark job. So these processes that make
+up a Spark application, these are all running in
+these executor things here. And this is also where your
+data is stored and cached. So just to summarize, executors run
+the tasks that represent the application, they return the computed
+results to the driver so whenever an action is done
+on one of these executors, the executor is the one that returns
+the result back to the driver program. And of course, executors also provide
+in memory storage for cached RDDs. So to summarize the steps that represent
+the execution of a Spark program, the driver program runs
+the Spark application, which creates a SparkContext
+upon start-up. Then the SparkContext connects to a
+cluster manager, for example, like I said, the most Popular are Mesos/YARN which then
+allocates all the resources everywhere. After that Spark requires executors
+on nodes in the clusters. Now that you have a few nodes and you have this clusterizer running,
+then you establish executors everywhere. And these executors are the processes
+that run computation and store data for your application. Next, your driver program then sends
+your application code to the executor. So the driver program is
+actually sending code around. Think about it, you're sending a function
+around to the individual nodes here. So if I want to do a map on an RDD, this guy is actually sending that function
+to all the individual worker nodes and saying, hey apply this function to
+the data that you have on your node and then maybe there's an action, and
+then send the result back to me. And finally the SparkContext sends
+tasks for the executors to run. So the SparkContext
+figures out what to do and then sends it along to the executors
+to actually execute that work. So let's go back to our first example. Now that we know a little bit
+about the anatomy of a Spark Job. So remember we had an RDD of these person
+objects, we did people.foreach(println). So the question was, what happens? Well, on the driver nothing happens,
+why might that be? I'll give you a hint,
+foreach is not a transformation. Remember that foreach is an action and
+it has return type unit, so it's a side affecting thing. Therefore, because it's an action,
+it's eagerly executed on the executors and it's not being executed on the driver. Any calls to println that happen
+inside of this foreach thing, end up happening on
+the individual worker nodes. So then, whatever this println is doing
+is being executed on the worker nodes and it's going to the standard out of the
+working nodes, which you can't see if your looking at the standard out of
+the master node that you're on. So, basically, what this does, is it
+prints lines on the workers that you can't see because you're sitting on the master. Okay, what about this? The second example here, so
+we have this RDD of people. And we do people.take, what happens? Where will the array of person
+representing first(10) and up. Well by now I think you'll
+guess the driver program. Because in general when
+you execute an action it involves communicating data back from
+the worker notes to the driver program. So what you do here is you're telling the
+executor nodes to do this computation and to send it back to the driver nodes. So running an action actually sends
+data back to the driver nodes. So what you're doing is you're giving an
+order to the worker nodes to do some work. And then the work nodes are sending
+their data back to the driver node. So the driver program is the one that
+has this array of ten person objects. So the moral of the story is,
+to make effective use of RDDs, you really have to understand a little
+bit about how Spark works under the hood. In particular, you have to know
+the anatomy of a Spark Job. You have to know that there's something
+called the driver program, and that's sort of the brains of
+the application, and that a bunch of work is being farmed out to worker
+nodes and executors all over the place. Right, and due to this API which is mixed,
+eager and lazy, it's not always immediately obvious upon
+first glance which part of the cluster a line of code might run on. For example, transformations. So transformations are queued up and then
+when an action comes along, then all that staff that got queued up gets optimized
+by the driver program, sent to the worker nodes, and then the worker node
+sends something back to the driver node. So when you write a line
+of code like foreach you really have to think about where
+that code is going to execute. If you write foreach and you want to
+do some foreach println to see what is going wrong with your data set,
+you're not going to see the result of that because that's being
+executed on the workers. So you really gotta think about
+where your code is executing. It's on you to know where
+the code is executing. So remember, even though RDDs look like
+regular Scala collections upon first glance, unlike Scala collections,
+RDDs require you to have a good grasp of the underlying infrastructure
+that they're running on. That's the take away for this session.

@@ -1,0 +1,274 @@
+In this session we're going to
+talk about evaluation in Spark and in particular, reasons why Spark
+is very unlike Scala Collections. So as I've already pointed out in
+previous sessions, there's this laziness eagerness thing going on
+between transformations and actions. We covered some simple examples
+which showed how evaluation was different in Spark. These differences can compound and
+link to inefficient programs. So it's very important to
+understand completely how your Spark programs are being evaluated because
+there are many situations where you want to avoid unnecessary evaluation in Spark. So in this session, we're going to look
+at exactly how evaluation works and some common scenarios you should think
+about when writing Spark programs. So let's first start with
+a little bit of a digression. So why is Spark good for Data Science? In order to answer that question, let's start by recapping some major
+themes from previous sessions. So in the last session we learned about
+the difference between transformations and actions, in particular that
+transformations are deferred or lazy and actions are eager. They kick off stage transformations. So we learned that last session and
+a few sessions earlier, we learned that latency is important. It makes a big difference in
+the experience of the actual data analyst using Spark and that if we can shift
+things in memory as much as possible, we can significantly
+lower these latencies and save a lot of time and improve the
+experience of the analyst analyzing data. This analyst can get more work done,
+basically, with lower latencies. There are these two points that
+we've learned in previous sessions. And somehow they're going to
+come together into an answer. But why Spark is good for Data Science? Can you see why? Is it clear yet? I'll give you a quick hint. Most data science problems,
+when you think about them, they involve some kind of iteration. So how do transformations, actions, and
+in-memory computation, how are these things somehow important to data science
+problems that involve iteration? Well first,
+let's look at Iteration in Hadoop. So here's a graphical
+illustration trying to show what an interative
+program would look like. A program with at least three iterations,
+probably more. In this example what we have is some kind
+of input, perhaps some data in HDFS. And then we have iterations that
+are implemented as little map produced programs and we iterate by running these individual
+map produced programs many many times. So at each iteration we probably
+have a map at a reduced step. And between iterations, we want to
+write the data that we computed, and then we want to read it again for
+the next iteration. So we know that there's
+probably reading and writing going on in each
+of these iterations. And there's also reading and
+writing going on between these iterations. So we have to read and write this intermediate data, each time
+we want to end or start a new iteration. So one thing that might jump out at
+you if you recall the latency lecture, is that a lot of time is spent then in IO,
+disc IO or even network IO. One figure has attributed
+around 90% of this time being spent in IO operations,
+which Spark can avoid. So if you want to do iteration in Spark
+it can be much more performant because all of this reading and writing to disk
+can be completely avoided in Spark. We have to of course
+read in data from HDFS. But once things are in memory we
+can just iterate on it in memory. We can run the same sort of map reduce
+steps, or filter or whatever steps, many times, again, and again, and again,
+for how many iterations that we want. And it's all sitting in memory. It can still be recovered
+if there is a failure. And there's a lot of reading, and writing,
+and things that just don't have to happen because we don't need to persist
+things to disk all the time. So begin to answer this question
+about why Spark is good for data science applications and
+why transformations, and actions, and in-memory computations are important? We can start to see here
+that it's better for iterative programs to be done in
+memory because they'll be faster. But what does it have to do with
+transformations and actions? To understand why transformations,
+or actions, have to be carefully thought about in this
+situation, let's look at a quick example. So let's look at logistic regression,
+which is kind of the Hello, World of big data iterative algorithms. Logistic regression is a popular iterative
+algorithm that's typically used for classification tasks. So assuming you have two different
+Classes of data blue and red. And what we want to do is we want
+to come up with a classifier or a way to separate out these
+two different classes of data. So the classifier will
+be basically this line. We move it around on this space here. Until it separates this
+two classes of data. And then if we ever get new data we assume
+that it follows the same trend as the red and blue and hopefully it should work for
+any new data that's added right. That's the idea of a classifier. So just visually,
+to get an idea of what we're doing here. On one iteration,
+we moved the line a little bit. On another iteration,
+we moved the line a little bit. We keep doing this, and like I said, we're
+iterating through all the data every time. We're doing some math with all the data. And then eventually we find
+a good separating line here. And the algorithm stops. And what we're focused on is less
+the details of logistic regression. But we're really focused on
+the shape of the computation, the fact that we pass through all the data
+on many iterations to come up with a new estimation of this line
+separating two sets of data. That's the shape of the computation
+that we're going to be looking at. And this is how we're going to update
+those weights that represent the position of that line that separates
+the two classes of data, right. So, as you can see here, there is a number
+of iterations that we're going to do and we're going to iterate through these x,
+y data set. And there's some function g which
+doesn't need to be shown here but it's part of the logistic
+regression algorithm. So this algorithm can be implemented in
+a very straightforward way in the Spark. Here it is. So just to step through it,
+what we have here is first we have an RDD points and this is read in from textFile somewhere
+and then this textFile is parsed so we have a map function that goes
+through all blinds of the textFile. Remember textFile reduce
+RDD full of strings so we have to convert all these strings
+into basically doubles here. We have a vector of weight, so these Ws here which
+we initialize as a 0. Then for some number of iterations
+that we determine elsewhere, we go through the entire
+data set several times. So here we go through
+all of the points and then we apply this G function here, okay? And then we reduce, and now we update the vector of weights here using
+what we have just computed, using this gradient that
+we've just computed, okay? Okay, cool.
+So now we understand the basic
+shape of this algorithm. It's pretty concise isn't it? Essentially we iterate on
+applying a map and the reduce for some number of times on a certain RDD,
+we apply math and then redo. So we do this perhaps 30 times. And you update some local vector with the results every single
+time you go through this entire dataset. Okay, so
+that's in general shape of this algorithm. But what's really happening here? Remember, on the first slide, we were talking about trying to
+keep computations in memory. And having to think about what
+are transformations and what are actions? So what's, what's really going on here? I'll give you a second to think about it,
+and then we'll talk about
+it on the next slide. Well, the short answer is that we're doing
+a lot of work that we don't have to do. Remember, transformations like map get
+reevaluated every time an action is used. So we do have one map here
+which gets re-evaluated when we call this reduce here. We also have a map here. That means we're applying this
+map function again and again and again when we don't have to. So points is being re-evaluated
+on every iteration. If we have 30 iterations for
+re-evaluating points, 30 times, that's completely unnecessary,
+we shouldn't have to do that, that's a lot of extra work that we
+don't want to be be doing right now. It would be much better if what we could
+do is create these points RDD, leave it sitting in memory because we that's faster
+and then reuse it on every iteration. Instead what we're doing is we're
+recomputing on every iteration which is surely very expensive. So we see here a major consequence
+of these lazy symantics of these transformation operations. By default, RDDs are recomputed each
+time you run an action on them. That's something you can't forget about,
+and of course as we just saw especially in
+the case of an iterative algorithm, this can be very expensive in time if you
+need to use a data set again and again. But what's nice about Spark is
+that it gives you a way to control what data you have cached sitting in
+memory, available to reuse again. In order to instruct Spark, hey,
+I'm actually going to use this again, don't recompute it a thousand times, you
+can use a method, persist or method cache. What these methods do is
+after an RDD is evaluated, it keeps them in memory, so
+you can reuse them again. So here's a quick example of
+a situation where you might want to use this cache function, or
+this persist function. So recall this example where we have an RDD full of strings that
+represent years worth of logs. And let's just say we want to
+go through all of these logs and we want to filter out the ones
+that are actually errors, right? And we know we're going to have
+to use this a few times, so here we have an action take. And in this case so far, if we didn't
+use persist, this would be okay. What we would be doing is we
+would be evaluating it once at the point which we call take(10). And that would be it. We wouldn't need to evaluate
+filter a bunch of times. Because we only really use it once. However, if I add a line of code here. Here's another action. So I have now take and count,
+it's beneficial now to persist this LogsWithError RDD because if we
+don't persist this, if this is not cached in memory, then what happens is I
+do this filter on lastYearsLogs twice. I do it when I compute take(10) and
+I do it when I compute count. So, what we can do is if we do persist,
+that means that this logsWithErrors, this RDD sits in memory,
+and it can be reused. So it can be, we just use that again
+without having to recompute this filter for the take(10). And then we again reuse the same
+RDD that's sitting in memory to compute this count without having
+to go through that filter again. So if we go back to this logistic
+regression example that we just saw, we can add persist to this points
+method here and what that will do is that will prevent us from having
+to evaluate it on every iteration. We evaluate now,
+we just evaluate it once and then we re-use that data set that's
+sitting in memory each time. We do this map and this reduce on this points data set to
+compute this gradient on each iteration. So here, we can save a lot of effort and
+not have to continually re-compute this RDD by caching it
+in memory the first time we use it. Okay, to delve just a little bit deeper
+into caching and persistence in Spark. It's possible to persist your
+dataset in many different ways. For example, as just regular Java
+objects sitting in memory so, just Azure program normally run, nothing
+special just to keep your data in memory. You can also persist to disk
+as regular Java objects. You can persist in memory as
+serialized Java objects, so that is converting these objects and
+memory to, byte arrays or arrays of bytes which is much more compact but it takes
+some effort serializing and deserializing. So it saves memory but
+it costs a little bit of compute time. Same thing put these on disk or a mixture
+of keeping data in memory and on disk. And in particular, in this case, rather than re-evaluating many
+transformations a bunch of times, anything that needs to spill over to disk,
+in case you don't have enough memory. Everything that you can keep in memory,
+you keep in memory, but if you don't have enough memory, then we persist the thing
+that you tried to cache to disk. That's actually very
+different from this here. If you run out of memory in this case, you
+don't have enough memory between all of your nodes to hold the data set in memory. What happens is a least
+recently used policy for evacuating things out of memory. So let's say you have an RDD. Let's say you've done 20
+transformations on this and it takes a long time to go
+through all of them, right? If you don't have enough memory
+to hold that resulting data set, you can persist on it and
+you've chosen this mode here. What happens is Spark only holds
+as much as it can in memory and anything else that it can't hold
+in memory, it throws it out. If ever those pieces of data need to be
+reused, then it will re-evaluate them, it will go through all those many
+transformations that are required to reevaluate the missing
+pieces of data it doesn't have. So in this case, this right here could
+be very useful in a situation where it takes a lot of work to get to
+whatever thing you try to persist and then can persist at least the thing
+that you've already computed. So just to give some context, there is
+many different ways you can configure, actually help the systems
+works in your smart job. And the two methods that you
+use are cache or persist. Cache is a shorthand for
+default storage level. So storage level is what we use
+to configure these things but you can just write cache with
+some parentheses behind it. And that will be the default storage
+level which is memory only for regular job objects. That's this one here. And persist is another method that
+you can pass different arguments too representing one of these so called storage levels in order to
+customize how the persistence works. So this is the method you use if you
+want to change the default behavior. And just to show you a quick chart
+of the different storage levels that are available, these are the things you
+pass through the persist method and here's just the chart kind of showing the
+pros and cons of different storage levels. So for example,
+MEMORY_ONLY uses a lot of space, but it's pretty fast because you don't have
+to do any extra processing on this data. It's always in memory, never on disk. Whereas some of these other
+ones like MEMORY_AND_DISK and MEMORY_AND_DISK_SERialized and what not,
+again they have different trade offs. So, when you keep things serialized, it costs a bunch of time serialize and
+de-serialize it CPU time. But of course it uses very little space in
+memory, so you can put more data in memory but of course you're going to have to
+serialize and deserialize each individual element of that data set if
+you ever want to access it. So, there are different trade offs,
+this is for you to decide depending on
+the job that you're doing. But just be aware that there
+are a lot of choices, but in general, throughout this course we're always
+really just going to use the default. So we're going to use this
+memory only storage level, which you can get by just calling cache or
+persist without arguments. So key takeaway of this
+session is to remember that despite how similar Spark
+looks to Scala Collections, this is deferred semantics of
+the RDDs that you're using, have a very different behavior
+compared to Scala Collections. So the need to use this cache function
+to prevent things from being evaluated multiple times. For example, this is completely unlike
+Scala Collections even though the same interface is available to you. And you got to remember this because
+this could be the difference between you waiting a really long time for
+a job to complete or a job being finished in a few seconds. So just to reiterate due to
+the lazy semantics of these RDD transformation operators and
+due to many users sort of implicit reflex to assume the eager semantics of
+the regular Scalar collections. One of the most common issues that
+newcomers have when they start using Spark is this issue where people are unknowingly
+re-evaluating several transformations. So you're just kind of doing this
+in computations again and again and again without realizing that you're
+doing these mini computations again and again and again. And you could save all that
+effort by doing caching. And of course this is something important
+to point out when you do your programming assignments, this is something that
+students mistakenly do all the time. And as a result during the programming
+assignments lots of students have a tendency to run out of memory and
+to not know why, this is a big hint. This is probably going to be the main
+reason why you might be running out of memory in your programming assignments. So just before we conclude, I want to remind you that actually
+this laziness is really useful. Because after the last slide,
+you must be like my gosh, I have no idea what's
+happening under the hood. How do I know if things are being
+reevaluated all the time? I have to look much more closely
+than I thought at my Spark programs. Which might seem like a bad thing off
+the top of your head, but [COUGH] I will remind you again, via two examples real
+quick, why laziness is a good thing. So we saw this example actually in
+the last session, just to remind you. Let's assume we have an RDD full of strings which represent
+a year's worth of logs. And then we do a filter on it to filter
+out the logs that have errors and then we just take the first
+ten out of those, right? So why is laziness useful here? It's because filter is delayed
+until take is applied, that gives Spark the opportunity to
+inspect this chain of operations that are sort of queued up
+before being executed. Let Spark figure out how to
+do important optimizations. So for example on this case,
+what Spark can do is it can say, so I only need to find ten results
+that match this predicate here from the filter because I'm only
+going to take ten of those. So rather than having to go through the
+entire data set, Spark can intelligently just say, okay once I've got ten
+items that match this predicate here, I'm just going to quit and
+save a whole bunch of time. And not have to iterate through the whole
+data set just not to use it right? So Spark can do important
+optimizations like these. So another important optimization
+that Spark can do is fusing transformations together. So just like before, Spark now has
+the opportunity to make an optimization before the count is actually executed, and
+in this case what Spark can do is it can stage these computations and then fuse
+them together so it has to do less work. So in this case, because map
+usually requires that you do one entire traversal through a data set and filter also requires you to do one
+entire traversal through a data set. Spark can say, hey look, I've got
+two traversals that I've gotta do. Maybe I should only traverse this data
+set once, rather than many times. And I can compute the result
+of both the map and the filter in a single pass
+before returning the count. What Spark can do here is it can
+basically optimize this, and then instead of pass through the data set
+many times, like would be the case for eager collections,
+like Scalar's regular collections, and Scalar's regular collections would be
+passing through the data set many times. Spark can very intelligently say, I don't
+have to do that, I can do less work. So laziness, remember,
+it's a very good thing. You just gotta remember that
+you have to think about it when you are writing programs. You can't just write code and
+imagine that everything is eager. You have to remember that
+transformations are lazy.
